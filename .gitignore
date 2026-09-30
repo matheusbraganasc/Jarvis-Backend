@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -216,3 +217,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+=======
+.env
+>>>>>>> 300d03e (feat: estrutura inicial do backend com FastAPI e ai_engine)
