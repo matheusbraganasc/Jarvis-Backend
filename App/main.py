@@ -1,10 +1,21 @@
 from fastapi import FastAPI, HTTPException, Security, Header
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 from App.Core.ai_engine import JarvisBrain
 from App.Core.config import settings
 
 app = FastAPI(title="J.A.R.V.I.S. Central Server")
+
+# --- CONFIGURAÇÃO DE CORS (LIBERA O HUD WEB) ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 brain = JarvisBrain()
 
 # Configuração de Segurança por API Key

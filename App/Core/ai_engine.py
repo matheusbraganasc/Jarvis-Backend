@@ -1,16 +1,12 @@
 import json
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from google import genai
 from google.genai import types
 from groq import Groq
 from App.Core.config import settings
-
-SYSTEM_INSTRUCTION = (
-    "Você é o J.A.R.V.I.S., assistente pessoal do Senhor. "
-    "Responda sempre em português, de forma breve, eficiente e refinada. "
-    "Suas respostas serão lidas por voz, evite caracteres especiais ou emojis."
-)
 
 FERRAMENTAS_SCHEMA_GEMINI = [
     types.Tool(function_declarations=[
@@ -95,6 +91,17 @@ class JarvisBrain:
 
         self.historico = []
 
+    def _montar_system_instruction(self) -> str:
+        agora = datetime.now(ZoneInfo("America/Fortaleza")).strftime(
+            "%A, %d de %B de %Y, %H:%M"
+        )
+        return (
+            "Você é o J.A.R.V.I.S., assistente pessoal do Senhor. "
+            f"A data e hora atual é: {agora}. "
+            "Responda sempre em português, de forma breve, eficiente e refinada. "
+            "Suas respostas serão lidas por voz, evite caracteres especiais ou emojis."
+        )
+
     def _montar_contents_gemini(self):
         contents = []
         for item in self.historico:
@@ -116,7 +123,7 @@ class JarvisBrain:
         return contents
 
     def _montar_mensagens_groq(self):
-        mensagens = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
+        mensagens = [{"role": "system", "content": self._montar_system_instruction()}]
         for item in self.historico:
             role = "assistant" if item["role"] == "model" else "user"
             mensagens.append({"role": role, "content": item["content"]})
@@ -127,7 +134,7 @@ class JarvisBrain:
             raise RuntimeError("Cliente Gemini não configurado.")
 
         config_kwargs: dict[str, Any] = dict(
-            system_instruction=SYSTEM_INSTRUCTION,
+            system_instruction=self._montar_system_instruction(),
             temperature=0.7,
         )
         if incluir_tools:
