@@ -1,6 +1,7 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import requests
-from fastapi import FastAPI, HTTPException, Security, Header
+from fastapi import FastAPI, HTTPException, Security
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
@@ -43,6 +44,23 @@ def executar_skill_local(directive: str):
     """Executa tarefas locais instantâneas sem gastar quota da IA."""
     directive_upper = directive.upper()
     
+    # Força o fuso horário correto de Fortaleza
+    fuso_ceara = ZoneInfo("America/Fortaleza")
+    agora = datetime.now(fuso_ceara)
+    
+    # Dicionário para garantir o mês sempre em português correto
+    meses_pt = {
+        1: "janeiro", 2: "fevereiro", 3: "março", 4: "abril",
+        5: "maio", 6: "junho", 7: "julho", 8: "agosto",
+        9: "setembro", 10: "outubro", 11: "novembro", 12: "dezembro"
+    }
+    
+    hora_atual = agora.strftime("%H:%M")
+    dia_mes = agora.day
+    nome_mes = meses_pt[agora.month]
+    ano_atual = agora.year
+    data_formatada = f"{dia_mes} de {nome_mes} de {ano_atual}"
+    
     # 1. SKILL: CLIMA EM TEMPO REAL (Fortaleza / Caucaia)
     if any(k in directive_upper for k in ["CLIMA", "TEMPO", "CHOVER", "TEMPERATURA"]):
         try:
@@ -57,10 +75,6 @@ def executar_skill_local(directive: str):
 
     # 2. SKILL: BRIEFING MATINAL (Relatório Completo)
     elif any(k in directive_upper for k in ["BOM DIA", "BRIEFING", "RELATÓRIO MATINAL", "RESUMO DO DIA"]):
-        agora = datetime.now()
-        hora_atual = agora.strftime("%H:%M")
-        data_atual = agora.strftime("%d de %B de %Y")
-        
         try:
             url = "https://api.open-meteo.com/v1/forecast?latitude=-3.7172&longitude=-38.5433&current_weather=true"
             res = requests.get(url, timeout=4).json()
@@ -71,7 +85,7 @@ def executar_skill_local(directive: str):
 
         resposta = (
             f"Bom dia, Senhor. Sistemas operacionais totalmente online. "
-            f"Hoje é {data_atual}, exatamente {hora_atual}. "
+            f"Hoje é {data_formatada}, exatamente {hora_atual}. "
             f"Na região metropolitana, o clima encontra-se {clima_txt}. "
             f"Os núcleos centrais estão estáveis e prontos para as diretrizes de desenvolvimento de hoje."
         )
