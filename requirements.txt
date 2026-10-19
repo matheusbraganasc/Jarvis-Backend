@@ -4,3 +4,7 @@ google-genai
 groq
 python-dotenv
 pydantic
+feedparser
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
