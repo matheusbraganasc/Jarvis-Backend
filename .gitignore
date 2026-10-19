@@ -220,3 +220,10 @@ __marimo__/
 =======
 .env
 >>>>>>> 300d03e (feat: estrutura inicial do backend com FastAPI e ai_engine)
+
+# Google OAuth Credentials & Tokens
+credentials.json
+token.json
+App/Core/credentials.json
+App/Core/token.json
+*.json
