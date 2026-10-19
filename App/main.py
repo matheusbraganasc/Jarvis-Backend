@@ -7,7 +7,12 @@ from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
 from App.Core.ai_engine import JarvisBrain
-from App.Core.briefing_skill import gerar_morning_briefing
+from App.Core.briefing_skill import (
+    gerar_morning_briefing,
+    buscar_somente_emails,
+    buscar_somente_tarefas,
+    buscar_somente_noticias,
+)
 from App.Core.config import settings
 
 app = FastAPI(title="J.A.R.V.I.S. Central Server")
@@ -68,12 +73,45 @@ def executar_skill_local(directive: str):
                 "resposta": "Senhor, os sensores meteorológicos externos estão temporariamente inacessíveis.",
             }
 
-    # 2. SKILL: BRIEFING MATINAL (Relatório Completo com RSS e Dados Estruturados)
+    # 2. SKILL: BRIEFING MATINAL COMPLETO (Relatório Sequencial Animado)
     elif any(
         k in directive_upper
         for k in ["BOM DIA", "BRIEFING", "RELATÓRIO MATINAL", "RESUMO DO DIA"]
     ):
         return gerar_morning_briefing()
+
+    # 3. COMANDO ISOLADO: E-MAILS
+    elif any(k in directive_upper for k in ["E-MAIL", "EMAIL", "EMAILS", "CAIXA DE ENTRADA", "MENSAGENS"]):
+        res = buscar_somente_emails()
+        return {
+            "tipo": "single_popup",
+            "categoria": "emails",
+            "skill": "EMAIL_SKILL",
+            "resposta": res["fala"],
+            "dados": res["dados"],
+        }
+
+    # 4. COMANDO ISOLADO: TAREFAS
+    elif any(k in directive_upper for k in ["TAREFA", "TAREFAS", "AGENDA", "COMPROMISSO", "COMPROMISSOS"]):
+        res = buscar_somente_tarefas()
+        return {
+            "tipo": "single_popup",
+            "categoria": "tarefas",
+            "skill": "TASKS_SKILL",
+            "resposta": res["fala"],
+            "dados": res["dados"],
+        }
+
+    # 5. COMANDO ISOLADO: NOTÍCIAS / CORINTHIANS
+    elif any(k in directive_upper for k in ["NOTÍCIA", "NOTICIA", "NOTÍCIAS", "NOTICIAS", "CORINTHIANS", "FEEDS"]):
+        res = buscar_somente_noticias()
+        return {
+            "tipo": "single_popup",
+            "categoria": "noticias",
+            "skill": "NEWS_SKILL",
+            "resposta": res["fala"],
+            "dados": res["dados"],
+        }
 
     return None
 
@@ -98,10 +136,12 @@ def processar_chat(payload: ChatRequest, api_key: str = Security(validar_api_key
     # 1. Tenta executar a Skill Local primeiro (Instantânea e com dados estruturados)
     resultado_skill = executar_skill_local(mensagem)
     if resultado_skill:
-        brain.historico.append({"role": "user", "content": mensagem})
-        brain.historico.append(
-            {"role": "model", "content": resultado_skill["resposta"]}
+        # Se for briefing sequencial, pegamos a primeira fala ou uma frase geral para o histórico do cérebro
+        fala_historico = resultado_skill.get("resposta") or (
+            resultado_skill["passos"][0]["fala"] if "passos" in resultado_skill else "Executando skill..."
         )
+        brain.historico.append({"role": "user", "content": mensagem})
+        brain.historico.append({"role": "model", "content": fala_historico})
         return resultado_skill
 
     # 2. Se não for skill local, processa via cérebro de IA (Gemini/Groq)
