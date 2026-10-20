@@ -14,6 +14,7 @@ from App.Core.briefing_skill import (
     buscar_somente_noticias,
 )
 from App.Core.config import settings
+from App.Core.tts_service import gerar_audio_jarvis_b64
 
 app = FastAPI(title="J.A.R.V.I.S. Central Server")
 
@@ -128,7 +129,7 @@ def status_servidor():
 
 
 @app.post("/chat")
-def processar_chat(payload: ChatRequest, api_key: str = Security(validar_api_key)):
+async def processar_chat(payload: ChatRequest, api_key: str = Security(validar_api_key)):
     mensagem = payload.message.strip()
     if not mensagem:
         raise HTTPException(status_code=400, detail="A mensagem não pode estar vazia.")
@@ -136,22 +137,50 @@ def processar_chat(payload: ChatRequest, api_key: str = Security(validar_api_key
     # 1. Tenta executar a Skill Local primeiro (Instantânea e com dados estruturados)
     resultado_skill = executar_skill_local(mensagem)
     if resultado_skill:
-        # Se for briefing sequencial, pegamos a primeira fala ou uma frase geral para o histórico do cérebro
-        fala_historico = resultado_skill.get("resposta") or (
-            resultado_skill["passos"][0]["fala"] if "passos" in resultado_skill else "Executando skill..."
-        )
+        # Se for briefing sequencial, gera o áudio Base64 para cada passo individual
+        if resultado_skill.get("tipo") == "briefing_sequencial" and "passos" in resultado_skill:
+            for passo in resultado_skill["passos"]:
+                if passo.get("fala"):
+                    passo["audio_b64"] = await gerar_audio_jarvis_b64(passo["fala"])
+            fala_historico = resultado_skill["passos"][0]["fala"]
+        else:
+            fala_historico = resultado_skill.get("resposta", "Executando skill...")
+            if fala_historico:
+                resultado_skill["audio_b64"] = await gerar_audio_jarvis_b64(fala_historico)
+
         brain.historico.append({"role": "user", "content": mensagem})
         brain.historico.append({"role": "model", "content": fala_historico})
         return resultado_skill
 
     # 2. Se não for skill local, processa via cérebro de IA (Gemini/Groq)
     resposta = brain.processar_comando(mensagem)
-    return resposta
+    
+    # Extrai a string de resposta se a IA retornar um dicionário ou objeto
+    texto_resposta = resposta.get("resposta", str(resposta)) if isinstance(resposta, dict) else str(resposta)
+    audio_b64 = await gerar_audio_jarvis_b64(texto_resposta)
+
+    if isinstance(resposta, dict):
+        resposta["audio_b64"] = audio_b64
+        return resposta
+
+    return {
+        "resposta": resposta,
+        "audio_b64": audio_b64,
+        "tipo": "texto",
+        "skill": "BRAIN_MODULE"
+    }
 
 
 @app.post("/chat/resultado-funcao")
-def processar_resultado_funcao(
+async def processar_resultado_funcao(
     payload: ResultadoFuncao, api_key: str = Security(validar_api_key)
 ):
     resposta = brain.continuar_apos_funcao(payload.nome_funcao, payload.resultado)
-    return resposta
+    texto_resposta = resposta.get("resposta", str(resposta)) if isinstance(resposta, dict) else str(resposta)
+    audio_b64 = await gerar_audio_jarvis_b64(texto_resposta)
+
+    if isinstance(resposta, dict):
+        resposta["audio_b64"] = audio_b64
+        return resposta
+
+    return {"resposta": resposta, "audio_b64": audio_b64}
